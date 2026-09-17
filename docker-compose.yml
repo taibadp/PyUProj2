@@ -1,0 +1,30 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: python_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./images_data:/app/images
+      - ./logs_data:/app/logs
+      - ./static:/app/static:ro
+    restart: always
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_server
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./images_data:/app/images:ro
+      - ./static:/app/static:ro
+    depends_on:
+      - app
+    restart: always
+
+volumes:
+  images_data:
+  logs_data:

@@ -1,0 +1,12 @@
+.idea
+.venv
+.venv/
+.env
+**/.DS_Store
+__pycache__
+ui
+python-1-docker.md
+images/
+logs/
+images_data/
+logs_data/

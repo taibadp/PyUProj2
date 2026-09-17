@@ -1,0 +1,15 @@
+.idea
+.venv
+.env
+.git
+.gitignore
+**/.DS_Store
+__pycache__
+*.pyc
+ui
+Dockerfile
+python-1-docker.md
+images/
+logs/
+images_data/
+logs_data/
