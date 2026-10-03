@@ -97,6 +97,59 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_response(404, {"error": "HTML-шаблон не знайдено"})
             return
 
+        # Додати обробку сторінки завантаження:
+        if clean_path == '/upload':
+            template_path = os.path.join('/app/static', 'form', 'upload.html')
+            
+            if not os.path.exists(template_path):
+                template_path = os.path.join(os.path.dirname(__file__), 'static', 'form', 'upload.html')
+
+            try:
+                with open(template_path, 'rb') as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Content-Length', str(len(content)))
+                self.end_headers()
+                self.wfile.write(content)
+            except FileNotFoundError:
+                self.send_json_response(404, {"error": "HTML-шаблон не знайдено"})
+            return
+
+        # --- ДОДАТИ: Сторінка завантаження (/upload) ---
+        if clean_path in ('/upload', '/upload.html', '/upload/'):
+            template_path = os.path.join('/app/static/form', 'upload.html')
+            if not os.path.exists(template_path):
+                template_path = os.path.join(os.path.dirname(__file__), 'static', 'form', 'upload.html')
+            try:
+                with open(template_path, 'rb') as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Content-Length', str(len(content)))
+                self.end_headers()
+                self.wfile.write(content)
+            except FileNotFoundError:
+                self.send_json_response(404, {"error": "HTML-шаблон не знайдено"})
+            return
+
+        # --- ДОДАТИ: Сторінка галереї (/images) ---
+        if clean_path in ('/images', '/images.html', '/images/'):
+            template_path = os.path.join('/app/static/form', 'images.html')
+            if not os.path.exists(template_path):
+                template_path = os.path.join(os.path.dirname(__file__), 'static', 'form', 'images.html')
+            try:
+                with open(template_path, 'rb') as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Content-Length', str(len(content)))
+                self.end_headers()
+                self.wfile.write(content)
+            except FileNotFoundError:
+                self.send_json_response(404, {"error": "HTML-шаблон не знайдено"})
+            return
+
         # 3. Обробка статичних файлів з папки /static/
         if clean_path.startswith('/static/'):
             # Відсікаємо префікс /static/ для отримання відносного шляху файлу

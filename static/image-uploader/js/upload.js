@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
             event.preventDefault();
 
             sessionStorage.removeItem('pageWasVisited');
-            window.location.href = '../index.html';
+            window.location.href = '/static/index.html';
         }
     });
 });

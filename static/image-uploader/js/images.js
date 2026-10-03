@@ -51,14 +51,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 fileItem.className = 'file-list-item';
                 fileItem.innerHTML = `
                     <div class="file-col file-col-name">
-                        <span class="file-icon"><img src="../image-uploader/img/icon/Group.png" alt="file icon"></span>
+                        <span class="file-icon"><img src="/static/image-uploader/img/icon/Group.png" alt="file icon"></span>
                         <span class="file-name">${fileData.name}</span>
                     </div>
                     <div class="file-col file-col-url">
                         <a href="${fileData.url}" target="_blank">${window.location.origin}${fileData.url}</a>
                     </div>
                     <div class="file-col file-col-delete">
-                        <button class="delete-btn" data-index="${index}"><img src="../image-uploader/img/icon/delete.png" alt="delete icon"></button>
+                        <button class="delete-btn" data-index="${index}"><img src="/static/image-uploader/img/icon/delete.png" alt="delete icon"></button>
                     </div>
                 `;
                 list.appendChild(fileItem);

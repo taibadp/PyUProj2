@@ -8,9 +8,44 @@
    - Обмеження розміру файлу: до 5 МБ.
    - Генерує унікальне ім'я для кожного завантажуваного зображення.
 
+### Використано
+- **Backend**: Python 3.13 (`http.server`)
+- **Web Server**: Nginx
+- **Containerization**: Docker & Docker Compose
+- **Frontend**: HTML5, CSS3, JavaScript
+
+## Запуск через Docker Compose
+
+### Скрипт що встановить та запустить
+
+#### Linux 
+
+```bash
+git clone git@github.com:taibadp/PyUProj2.git
+cd PyUProj2
+docker compose up --build
+```
+
+#### Windows
+```powershell.exe
+git clone git@github.com:taibadp/PyUProj2.git
+cd PyUProj2
+docker compose up --build
+```
+
+### Ручний запуск вже встановленого (завантаженого)
+```bash
+docker compose up --build
+```
+
+### Робота
+В бравзері відкрити
+http://localhost:8080
+
 ### Режими роботи
 
-- **Маршрут:** `/`
+*1. Головна сторінка*
+- **Маршрут:** `http://localhost:8080`
 - Функціональність:
   - Зустрічає користувача вітальним повідомленням та розповідає про сервіс.
   - Містить посилання на основні маршрути:
