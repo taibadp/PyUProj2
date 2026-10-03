@@ -10,3 +10,4 @@ images/
 logs/
 images_data/
 logs_data/
+*.bat
