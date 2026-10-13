@@ -9,7 +9,7 @@ from email.message import Message
 from PIL import Image
 
 # postgresql
-import psycopg2
+import psycopg
 from urllib.parse import parse_qs
 
 # ----------------------------------------------------------------------
@@ -23,6 +23,23 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 log_file_path = os.path.join(LOG_DIR, 'app.log')
 
+# Кастомний форматер для вимоги ТЗ: [2025-01-24 14:00:00] Успіх: ...
+class CustomFormatter(logging.Formatter):
+    def format(self, record):
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        return f"[{now_str}] {record.getMessage()}"
+
+logger = logging.getLogger("ImageServer")
+logger.setLevel(logging.INFO)
+
+file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
+file_handler.setFormatter(CustomFormatter())
+logger.addHandler(file_handler)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(CustomFormatter())
+logger.addHandler(stream_handler)
+
 
 # db
 DB_HOST = os.environ.get('DB_HOST', 'db')
@@ -31,7 +48,7 @@ DB_USER = os.environ.get('DB_USER', 'postgres')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', 'password')
 
 def get_db_connection():
-    return psycopg2.connect(
+    return psycopg.connect(
         dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port="5432"
     )
 
@@ -74,22 +91,6 @@ def parse_header(header_string):
     return main_value, params
 
 
-# Кастомний форматер для вимоги ТЗ: [2025-01-24 14:00:00] Успіх: ...
-class CustomFormatter(logging.Formatter):
-    def format(self, record):
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        return f"[{now_str}] {record.getMessage()}"
-
-logger = logging.getLogger("ImageServer")
-logger.setLevel(logging.INFO)
-
-file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
-file_handler.setFormatter(CustomFormatter())
-logger.addHandler(file_handler)
-
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(CustomFormatter())
-logger.addHandler(stream_handler)
 
 
 # ----------------------------------------------------------------------
@@ -152,20 +153,6 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             except FileNotFoundError:
                 self.send_json_response(404, {"error": "HTML-шаблон не знайдено"})
             return
-
-            # Збереження метаданих в PostgreSQL
-            try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT INTO images (filename, original_name, size, file_type) VALUES (%s, %s, %s, %s)",
-                    (unique_filename, original_filename, len(file_data), ext.lstrip('.'))
-                )
-                conn.commit()
-                cursor.close()
-                conn.close()
-            except Exception as db_err:
-                logger.info(f"Помилка збереження в БД: {db_err}")
 
         # --- ДОДАТИ: Сторінка галереї (/images) ---
         if clean_path in ('/images', '/images.html', '/images/', '/static/form/images.html'):
@@ -429,6 +416,19 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 with open(save_path, 'wb') as f:
                     f.write(file_data)
 
+                # Збереження метаданих в PostgreSQL
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO images (filename, original_name, size, file_type) VALUES (%s, %s, %s, %s)",
+                        (unique_filename, original_filename, len(file_data), ext.lstrip('.'))
+                    )
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                except Exception as db_err:
+                    logger.info(f"Помилка збереження в БД: {db_err}")
                 logger.info(f"Успіх: зображення {unique_filename} (оригінал: {original_filename}) завантажено.")
 
                 image_url = f"/images/{unique_filename}"

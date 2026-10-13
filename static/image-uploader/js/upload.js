@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (imagesButton) {
         imagesButton.addEventListener('click', () => {
-            window.location.href = '/images';
+            window.location.href = '/images-list';
         });
     }
 
