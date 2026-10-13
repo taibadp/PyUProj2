@@ -1,16 +1,55 @@
 services:
+  # python backend
   app:
     build:
       context: .
       dockerfile: Dockerfile
+      #target: app
+      #args:
+      #  UID: ${UID:-1000}
+      #  GID: ${GID:-1000}
+    #user: "${UID:-1000}:${GID:-1000}"
     container_name: python_app
     ports:
       - "8000:8000"
     volumes:
       - ./images_data:/app/images
       - ./logs_data:/app/logs
+      - ./backups_data:/app/backups
       - ./static:/app/static:ro
+    environment:
+      - DB_HOST=db
+      - DB_NAME=images_db
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+    depends_on:
+      - db
     restart: always
+
+  # PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_container
+    environment:
+      POSTGRES_DB: images_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      #POSTGRES_SCHEME: ${POSTGRES_SCHEME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: always
+    #shm_size: 128mb
+    #healthcheck:
+    #  test:
+    #    ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d postgres"]
+    #  interval: 5s
+    #  timeout: 5s
+    #  retries: 10
+    #  start_period: 10s
+    #networks:
+    #  - app-network
 
   nginx:
     image: nginx:alpine
@@ -28,3 +67,5 @@ services:
 volumes:
   images_data:
   logs_data:
+  db_data:
+  backups_data:

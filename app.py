@@ -8,6 +8,10 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from email.message import Message
 from PIL import Image
 
+# postgresql
+import psycopg2
+from urllib.parse import parse_qs
+
 # ----------------------------------------------------------------------
 # Налаштування шляхів та логування
 # ----------------------------------------------------------------------
@@ -18,6 +22,41 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
 log_file_path = os.path.join(LOG_DIR, 'app.log')
+
+
+# db
+DB_HOST = os.environ.get('DB_HOST', 'db')
+DB_NAME = os.environ.get('DB_NAME', 'images_db')
+DB_USER = os.environ.get('DB_USER', 'postgres')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', 'password')
+
+def get_db_connection():
+    return psycopg2.connect(
+        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port="5432"
+    )
+
+def init_db():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS images (
+                id SERIAL PRIMARY KEY,
+                filename TEXT NOT NULL,
+                original_name TEXT NOT NULL,
+                size INTEGER NOT NULL,
+                upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                file_type TEXT NOT NULL
+            );
+        """)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info("Успіх: таблиця images ініціалізована в БД.")
+    except Exception as e:
+        logger.info(f"Помилка ініціалізації БД: {e}")
+
+init_db()
 
 
 def parse_header(header_string):
@@ -97,27 +136,8 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_response(404, {"error": "HTML-шаблон не знайдено"})
             return
 
-        # Додати обробку сторінки завантаження:
-        if clean_path == '/upload':
-            template_path = os.path.join('/app/static', 'form', 'upload.html')
-            
-            if not os.path.exists(template_path):
-                template_path = os.path.join(os.path.dirname(__file__), 'static', 'form', 'upload.html')
-
-            try:
-                with open(template_path, 'rb') as f:
-                    content = f.read()
-                self.send_response(200)
-                self.send_header('Content-Type', 'text/html; charset=utf-8')
-                self.send_header('Content-Length', str(len(content)))
-                self.end_headers()
-                self.wfile.write(content)
-            except FileNotFoundError:
-                self.send_json_response(404, {"error": "HTML-шаблон не знайдено"})
-            return
-
         # --- ДОДАТИ: Сторінка завантаження (/upload) ---
-        if clean_path in ('/upload', '/upload.html', '/upload/'):
+        if clean_path in ('/upload', '/upload.html', '/upload/', '/static/form/upload.html'):
             template_path = os.path.join('/app/static/form', 'upload.html')
             if not os.path.exists(template_path):
                 template_path = os.path.join(os.path.dirname(__file__), 'static', 'form', 'upload.html')
@@ -133,8 +153,22 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_response(404, {"error": "HTML-шаблон не знайдено"})
             return
 
+            # Збереження метаданих в PostgreSQL
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO images (filename, original_name, size, file_type) VALUES (%s, %s, %s, %s)",
+                    (unique_filename, original_filename, len(file_data), ext.lstrip('.'))
+                )
+                conn.commit()
+                cursor.close()
+                conn.close()
+            except Exception as db_err:
+                logger.info(f"Помилка збереження в БД: {db_err}")
+
         # --- ДОДАТИ: Сторінка галереї (/images) ---
-        if clean_path in ('/images', '/images.html', '/images/'):
+        if clean_path in ('/images', '/images.html', '/images/', '/static/form/images.html'):
             template_path = os.path.join('/app/static/form', 'images.html')
             if not os.path.exists(template_path):
                 template_path = os.path.join(os.path.dirname(__file__), 'static', 'form', 'images.html')
@@ -186,6 +220,124 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(content)
                 return
+
+        # Сторінка зі списком зображень (з пагінацією)
+        if clean_path == '/images-list':
+            query_string = self.path.split('?')[1] if '?' in self.path else ''
+            query_params = parse_qs(query_string)
+            try:
+                page = int(query_params.get('page', [1])[0])
+            except ValueError:
+                page = 1
+            
+            limit = 10
+            offset = (page - 1) * limit
+            images_data = []
+            total_pages = 1
+
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM images;")
+                total_count = cursor.fetchone()[0]
+                total_pages = max(1, (total_count + limit - 1) // limit)
+
+                cursor.execute(
+                    "SELECT id, filename, original_name, size, upload_time, file_type FROM images ORDER BY upload_time DESC LIMIT %s OFFSET %s;",
+                    (limit, offset)
+                )
+                for row in cursor.fetchall():
+                    images_data.append({
+                        "id": row[0], "filename": row[1], "original_name": row[2],
+                        "size_kb": round(row[3] / 1024, 1), "upload_time": str(row[4]), "file_type": row[5]
+                    })
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                logger.info(f"Помилка читання з БД: {e}")
+
+            html_rows = ""
+            for img in images_data:
+                html_rows += f"""
+                <tr>
+                    <td><a href="/images/{img['filename']}" target="_blank">{img['filename']}</a></td>
+                    <td>{img['original_name']}</td>
+                    <td>{img['size_kb']} КБ</td>
+                    <td>{img['upload_time']}</td>
+                    <td>{img['file_type']}</td>
+                    <td><a href="/delete/{img['id']}" onclick="return confirm('Видалити зображення?');" style="color: #ff4d4d; text-decoration: none; font-weight: bold;">Видалити</a></td>
+                </tr>
+                """
+            if not html_rows:
+                html_rows = "<tr><td colspan='6' style='text-align: center;'>Немає завантажених зображень</td></tr>"
+
+            prev_disabled = "pointer-events: none; opacity: 0.5;" if page <= 1 else ""
+            next_disabled = "pointer-events: none; opacity: 0.5;" if page >= total_pages else ""
+
+            html_content = f"""<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Список зображень</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 40px; background: #151515; color: #fff; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; background: #222; }}
+        th, td {{ border: 1px solid #444; padding: 12px; text-align: left; }}
+        th {{ background: #333; }}
+        a {{ color: #4da6ff; text-decoration: none; }}
+        .pagination {{ margin-top: 20px; display: flex; gap: 15px; align-items: center; }}
+        .btn {{ background: #007bff; color: white; padding: 8px 15px; border-radius: 4px; display: inline-block; }}
+    </style>
+</head>
+<body>
+    <h1>Список завантажених зображень 📸</h1>
+    <p><a href="/" class="btn">← На головну / Завантаження</a></p>
+    <table>
+        <tr>
+            <th>Назва файлу</th><th>Оригінальна назва</th><th>Розмір (КБ)</th><th>Дата завантаження</th><th>Тип файлу</th><th>Дії</th>
+        </tr>
+        {html_rows}
+    </table>
+    <div class="pagination">
+        <a class="btn" href="/images-list?page={page - 1}" style="{prev_disabled}">Попередня</a>
+        <span>Сторінка {page} з {total_pages}</span>
+        <a class="btn" href="/images-list?page={page + 1}" style="{next_disabled}">Наступна</a>
+    </div>
+</body>
+</html>"""
+            body = html_content.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        # Видалення зображення за ID
+        if clean_path.startswith('/delete/'):
+            try:
+                img_id = clean_path.split('/')[2]
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT filename FROM images WHERE id = %s;", (img_id,))
+                row = cursor.fetchone()
+                if row:
+                    filename = row[0]
+                    file_path = os.path.join(UPLOAD_DIR, filename)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    cursor.execute("DELETE FROM images WHERE id = %s;", (img_id,))
+                    conn.commit()
+                    logger.info(f"Успіх: зображення з ID {img_id} видалено.")
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                logger.info(f"Помилка видалення: {e}")
+
+            self.send_response(303)
+            self.send_header('Location', '/images-list')
+            self.end_headers()
+            return
         
         # 4. Якщо нічого не підійшло
         self.send_json_response(404, {"error": "Файл або маршрут не знайдено"})

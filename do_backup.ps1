@@ -1,0 +1,1 @@
+docker exec -t postgres_container pg_dump -U postgres images_db > backups/backup_$(date +%Y-%m-%d_%H%M%S).sql
