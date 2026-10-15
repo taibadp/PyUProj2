@@ -25,7 +25,8 @@ WORKDIR /app
 
 RUN apk add --no-cache \
     libjpeg-turbo \
-    zlib
+    zlib \
+    postgresql-client
 
 COPY --from=builder /install /usr/local
 COPY . .

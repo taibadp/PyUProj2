@@ -1,3 +1,4 @@
+import subprocess
 import os
 import io
 import uuid
@@ -324,6 +325,48 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             self.send_response(303)
             self.send_header('Location', '/images-list')
             self.end_headers()
+            return
+        
+        # Маршрут для створення бекапу бази даних через app.py
+        if clean_path == '/backup':
+            try:
+                backup_dir = '/app/backups'
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                # Генерація імені файлу з датою та часом згідно з ТЗ
+                timestamp = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+                backup_filename = f"backup_{timestamp}.sql"
+                backup_path = os.path.join(backup_dir, backup_filename)
+                
+                # Передаємо пароль через змінні середовища для pg_dump
+                env = os.environ.copy()
+                env["PGPASSWORD"] = DB_PASSWORD
+                
+                cmd = [
+                    "pg_dump",
+                    "-h", DB_HOST,
+                    "-U", DB_USER,
+                    "-d", DB_NAME,
+                    "-f", backup_path
+                ]
+                
+                # Виклик системної команди pg_dump
+                result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    logger.info(f"Успіх: створено бекап бази даних {backup_filename}")
+                    self.send_json_response(200, {
+                        "message": "Резервну копію успішно створено",
+                        "filename": backup_filename,
+                        "path": f"/backups/{backup_filename}"
+                    })
+                else:
+                    err_msg = result.stderr or "Помилка виконання pg_dump"
+                    logger.info(f"Помилка бекапу: {err_msg}")
+                    self.send_json_response(500, {"error": err_msg})
+            except Exception as e:
+                logger.info(f"Помилка створення бекапу: {e}")
+                self.send_json_response(500, {"error": str(e)})
             return
         
         # 4. Якщо нічого не підійшло
