@@ -15,3 +15,4 @@ images_data/
 logs_data/
 *.bat
 *.zip
+*.sql
