@@ -24,7 +24,7 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 log_file_path = os.path.join(LOG_DIR, 'app.log')
 
-# Кастомний форматер для вимоги ТЗ: [2025-01-24 14:00:00] Успіх: ...
+# Кастомний форматер для вимоги ТЗ
 class CustomFormatter(logging.Formatter):
     def format(self, record):
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
